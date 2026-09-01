@@ -1,0 +1,45 @@
+name: Continuous Vertex AI Image Generation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-generation-loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # GitHub maximum job timeout (6 hours)
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install google-cloud-aiplatform pillow
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Run 6-Hour Generation Loop
+        env:
+          GCP_PROJECT_ID: 'durable-student-507318-t0'
+          GCP_LOCATION: 'us-central1'
+          DURATION_HOURS: '5.8'  # Runs ~5.8h to leave time for the final commit
+          INTERVAL_SECONDS: '120' # Pause between generations in seconds
+        run: python scripts/generate_batch.py
+
+      - name: Final commit and push
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add output/
+          git commit -m "Add final batch of generated images" || echo "No changes to commit"
+          git push
