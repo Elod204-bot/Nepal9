@@ -6,7 +6,7 @@ on:
 jobs:
   run-generation-loop:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # GitHub maximum job timeout (6 hours)
+    timeout-minutes: 360
     permissions:
       contents: write
 
@@ -21,7 +21,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install google-cloud-aiplatform pillow
+          pip install google-genai pillow
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -30,16 +30,18 @@ jobs:
 
       - name: Run 6-Hour Generation Loop
         env:
-          GCP_PROJECT_ID: 'durable-student-507318-t0'
-          GCP_LOCATION: 'us-central1'
-          DURATION_HOURS: '5.8'  # Runs ~5.8h to leave time for the final commit
-          INTERVAL_SECONDS: '120' # Pause between generations in seconds
+          GOOGLE_CLOUD_PROJECT: 'durable-student-507318-t0'
+          GOOGLE_CLOUD_LOCATION: 'us-central1'
+          GOOGLE_GENAI_USE_VERTEXAI: 'true'
+          DURATION_HOURS: '5.8'
+          INTERVAL_SECONDS: '120'
         run: python scripts/generate_batch.py
 
       - name: Final commit and push
+        if: always()
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add output/
-          git commit -m "Add final batch of generated images" || echo "No changes to commit"
-          git push
+          git add output/ || true
+          git commit -m "Add generated images batch" || echo "No changes to commit"
+          git push || echo "Push failed or nothing to push"
