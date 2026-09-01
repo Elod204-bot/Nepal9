@@ -18,7 +18,8 @@ LOCATION = os.environ.get(
 )
 
 DURATION_HOURS = float(os.environ.get("DURATION_HOURS", 5.8))
-INTERVAL_SECONDS = int(os.environ.get("INTERVAL_SECONDS", 120))
+# Changed from 120 to 5 seconds to run almost continuously
+INTERVAL_SECONDS = int(os.environ.get("INTERVAL_SECONDS", 5))
 OUTPUT_DIR = "output"
 
 MODEL_NAME = "gemini-3.1-flash-image"
@@ -132,7 +133,6 @@ def main():
                     flush=True
                 )
 
-                # Print any text returned by the model
                 if response.text:
                     print("Model response:", response.text, flush=True)
 
@@ -154,12 +154,13 @@ def main():
 
         sleep_time = min(INTERVAL_SECONDS, remaining)
 
-        print(
-            f"Sleeping {int(sleep_time)}s...",
-            flush=True
-        )
-
-        time.sleep(sleep_time)
+        # Skip the sleeping print statement if the wait time is 0 to keep logs clean
+        if sleep_time > 0:
+            print(
+                f"Sleeping {int(sleep_time)}s...",
+                flush=True
+            )
+            time.sleep(sleep_time)
 
 
 if __name__ == "__main__":
