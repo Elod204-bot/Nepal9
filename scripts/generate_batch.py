@@ -8,7 +8,6 @@ from google import genai
 from google.genai import types
 
 PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "durable-student-507318-t0")
-LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
 DURATION_HOURS = 5.8
 INTERVAL_SECONDS = 120
 OUTPUT_DIR = "output"
@@ -26,19 +25,53 @@ PROMPT = (
     "Natural soft overhead lighting, 3/4 angled view from above."
 )
 
+def find_working_endpoint():
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Scanning Google Cloud regions for unlocked Imagen access...", flush=True)
+    regions = ["us-central1", "us-east1", "europe-west1", "europe-west4", "asia-southeast1"]
+    models = ["imagen-3.0-generate-001", "imagen-3.0-generate-002", "imagen-3.0-fast-generate-001"]
+
+    for region in regions:
+        try:
+            client = genai.Client(vertexai=True, project=PROJECT_ID, location=region)
+        except Exception:
+            continue
+
+        for model_name in models:
+            print(f"Testing {model_name} in {region}...", flush=True)
+            try:
+                # Test the connection with a harmless prompt to bypass safety filters during the check
+                client.models.generate_images(
+                    model=model_name,
+                    prompt="A simple blue square.",
+                    config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="1:1")
+                )
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] SUCCESS: Locked onto {model_name} in {region}", flush=True)
+                return client, model_name
+            except Exception as e:
+                error_msg = str(e).lower()
+                # If it throws a safety error on a blue square, the model exists and is working.
+                if "safety" in error_msg or "blocked" in error_msg:
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] SUCCESS: Locked onto {model_name} in {region}", flush=True)
+                    return client, model_name
+                # 404 means not in this region, move to the next combination
+                continue
+                
+    return None, None
+
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Connecting via modern google-genai SDK...", flush=True)
-
-    try:
-        client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
-    except Exception as e:
-        print(f"Connection failed: {e}", flush=True)
+    
+    client, active_model = find_working_endpoint()
+    
+    if not client:
+        print("CRITICAL FAILURE: Google Cloud is returning 404 for Imagen across all major regions in this project.", flush=True)
         sys.exit(1)
 
     start_time = time.time()
     max_duration = DURATION_HOURS * 3600
     iteration = 1
+
+    print(f"\nStarting ~{DURATION_HOURS} hour generation loop...", flush=True)
 
     while (time.time() - start_time) < max_duration:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -48,7 +81,7 @@ def main():
 
         try:
             result = client.models.generate_images(
-                model="imagen-3.0-generate-001",
+                model=active_model,
                 prompt=PROMPT,
                 config=types.GenerateImagesConfig(
                     number_of_images=1,
@@ -63,7 +96,7 @@ def main():
                 image.save(filename)
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] SUCCESS -> {filename}", flush=True)
             else:
-                print("Blocked by safety filters.", flush=True)
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] BLOCKED: Vertex AI safety filters flagged the passport prompt.", flush=True)
 
         except Exception as err:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] API ERROR: {err}", flush=True)
@@ -73,6 +106,7 @@ def main():
         remaining = max_duration - elapsed
 
         if remaining <= 0:
+            print("Session time completed.", flush=True)
             break
 
         time.sleep(min(INTERVAL_SECONDS, remaining))
