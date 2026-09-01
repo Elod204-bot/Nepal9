@@ -3,17 +3,24 @@ import sys
 import time
 import io
 from datetime import datetime
+
 from PIL import Image
 from google import genai
 from google.genai import types
 
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "durable-student-507318-t0")
-LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
+PROJECT_ID = os.environ.get(
+    "GOOGLE_CLOUD_PROJECT",
+    "durable-student-507318-t0"
+)
+LOCATION = os.environ.get(
+    "GOOGLE_CLOUD_LOCATION",
+    "global"
+)
+
 DURATION_HOURS = float(os.environ.get("DURATION_HOURS", 5.8))
 INTERVAL_SECONDS = int(os.environ.get("INTERVAL_SECONDS", 120))
 OUTPUT_DIR = "output"
 
-# Hardcoded exactly to your request
 MODEL_NAME = "gemini-3.1-flash-image"
 
 PROMPT = (
@@ -29,13 +36,29 @@ PROMPT = (
     "Natural soft overhead lighting, 3/4 angled view from above."
 )
 
+
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Connecting to project {PROJECT_ID} in {LOCATION}...", flush=True)
+
+    print(
+        f"[{datetime.now().strftime('%H:%M:%S')}] "
+        f"Connecting to {PROJECT_ID} in {LOCATION}...",
+        flush=True
+    )
 
     try:
-        client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Client initialized successfully.", flush=True)
+        client = genai.Client(
+            vertexai=True,
+            project=PROJECT_ID,
+            location=LOCATION,
+        )
+
+        print(
+            f"[{datetime.now().strftime('%H:%M:%S')}] "
+            "Client initialized successfully.",
+            flush=True
+        )
+
     except Exception as e:
         print(f"Initialization error: {e}", flush=True)
         sys.exit(1)
@@ -44,38 +67,84 @@ def main():
     max_duration_seconds = DURATION_HOURS * 3600
     iteration = 1
 
-    print(f"Starting loop locked onto model: {MODEL_NAME}...", flush=True)
+    print(
+        f"Starting loop using {MODEL_NAME}...",
+        flush=True
+    )
 
     while (time.time() - start_time) < max_duration_seconds:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{OUTPUT_DIR}/passport_{timestamp}_{iteration}.png"
 
-        print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Requesting generation #{iteration}...", flush=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = os.path.join(
+            OUTPUT_DIR,
+            f"passport_{timestamp}_{iteration}.png"
+        )
+
+        print(
+            f"\n[{datetime.now().strftime('%H:%M:%S')}] "
+            f"Requesting generation #{iteration}...",
+            flush=True
+        )
 
         try:
-            # Trying generate_images method first
-            result = client.models.generate_images(
+            response = client.models.generate_content(
                 model=MODEL_NAME,
-                prompt=PROMPT,
-                config=types.GenerateImagesConfig(
-                    number_of_images=1,
-                    aspect_ratio="4:3",
-                    output_mime_type="image/png"
-                )
+                contents=PROMPT,
+                config=types.GenerateContentConfig(
+                    response_modalities=["TEXT", "IMAGE"],
+                ),
             )
 
-            if result.generated_images:
-                img_data = result.generated_images[0].image.image_bytes
-                image = Image.open(io.BytesIO(img_data))
-                image.save(filename)
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] SUCCESS: Saved {filename}", flush=True)
-            else:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] No image returned.", flush=True)
+            image_saved = False
+
+            if response.candidates:
+                for candidate in response.candidates:
+                    if not candidate.content:
+                        continue
+
+                    for part in candidate.content.parts:
+
+                        if getattr(part, "inline_data", None):
+                            image_bytes = part.inline_data.data
+
+                            image = Image.open(
+                                io.BytesIO(image_bytes)
+                            )
+
+                            image.save(filename)
+
+                            print(
+                                f"[{datetime.now().strftime('%H:%M:%S')}] "
+                                f"SUCCESS: Saved {filename}",
+                                flush=True
+                            )
+
+                            image_saved = True
+                            break
+
+                    if image_saved:
+                        break
+
+            if not image_saved:
+                print(
+                    f"[{datetime.now().strftime('%H:%M:%S')}] "
+                    "No image returned.",
+                    flush=True
+                )
+
+                # Print any text returned by the model
+                if response.text:
+                    print("Model response:", response.text, flush=True)
 
         except Exception as err:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] API ERROR: {err}", flush=True)
+            print(
+                f"[{datetime.now().strftime('%H:%M:%S')}] "
+                f"API ERROR: {err}",
+                flush=True
+            )
 
         iteration += 1
+
         elapsed = time.time() - start_time
         remaining = max_duration_seconds - elapsed
 
@@ -84,8 +153,14 @@ def main():
             break
 
         sleep_time = min(INTERVAL_SECONDS, remaining)
-        print(f"Sleeping {int(sleep_time)}s...", flush=True)
+
+        print(
+            f"Sleeping {int(sleep_time)}s...",
+            flush=True
+        )
+
         time.sleep(sleep_time)
+
 
 if __name__ == "__main__":
     main()
