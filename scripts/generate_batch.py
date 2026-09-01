@@ -1,15 +1,12 @@
 import os
 import sys
 import time
-import io
 from datetime import datetime
-from PIL import Image
-from google import genai
-from google.genai import types
+import vertexai
+from vertexai.preview.vision_models import ImageGenerationModel
 
-# --- Configuration ---
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "durable-student-507318-t0")
-LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "durable-student-507318-t0")
+LOCATION = os.environ.get("GCP_LOCATION", "us-central1")
 DURATION_HOURS = float(os.environ.get("DURATION_HOURS", 5.8))
 INTERVAL_SECONDS = int(os.environ.get("INTERVAL_SECONDS", 120))
 OUTPUT_DIR = "output"
@@ -30,69 +27,55 @@ PROMPT = (
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    print("==================================================")
-    print(f"Connecting to Vertex AI via GenAI SDK ({PROJECT_ID} / {LOCATION})")
-    print("==================================================")
-
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Initializing Vertex AI...", flush=True)
     try:
-        client = genai.Client(
-            vertexai=True,
-            project=PROJECT_ID,
-            location=LOCATION
-        )
-        print("Connected successfully.")
+        vertexai.init(project=PROJECT_ID, location=LOCATION)
+        # Using the standard Imagen-3 production endpoint
+        model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Model loaded successfully.", flush=True)
     except Exception as e:
-        print(f"Connection failed: {e}")
+        print(f"Initialization error: {e}", flush=True)
         sys.exit(1)
 
     start_time = time.time()
     max_duration_seconds = DURATION_HOURS * 3600
     iteration = 1
 
-    print(f"Starting execution loop for ~{DURATION_HOURS} hours...")
+    print(f"Starting loop for ~{DURATION_HOURS} hours...", flush=True)
 
     while (time.time() - start_time) < max_duration_seconds:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{OUTPUT_DIR}/passport_{timestamp}_{iteration}.png"
 
-        print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Generating image #{iteration}...")
+        print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Requesting image #{iteration} from Imagen 3...", flush=True)
 
         try:
-            result = client.models.generate_images(
-                model="imagen-3.0-generate-002",
+            response = model.generate_images(
                 prompt=PROMPT,
-                config=types.GenerateImagesConfig(
-                    number_of_images=1,
-                    aspect_ratio="4:3",
-                    output_mime_type="image/png",
-                    person_generation="allow_adult"
-                )
+                number_of_images=1,
+                aspect_ratio="4:3"
             )
 
-            if result.generated_images:
-                img_data = result.generated_images[0].image.image_bytes
-                image = Image.open(io.BytesIO(img_data))
-                image.save(filename)
-                print(f"Saved: {filename}")
+            if response and response.images:
+                response.images[0].save(location=filename, include_generation_parameters=False)
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] SUCCESS: Image saved to {filename}", flush=True)
             else:
-                print("No image returned (prompt may have been filtered).")
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] No image returned (safety filter).", flush=True)
 
         except Exception as err:
-            print(f"Generation error on iteration #{iteration}: {err}")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] API Error: {err}", flush=True)
 
         iteration += 1
         elapsed = time.time() - start_time
         remaining = max_duration_seconds - elapsed
 
         if remaining <= 0:
-            print("Time limit reached.")
+            print("Session time completed.", flush=True)
             break
 
         sleep_time = min(INTERVAL_SECONDS, remaining)
-        print(f"Waiting {int(sleep_time)}s before next run ({int(remaining / 60)}m left)...")
+        print(f"Sleeping for {int(sleep_time)} seconds ({int(remaining / 60)} mins remaining)...", flush=True)
         time.sleep(sleep_time)
-
-    print("\nSession complete.")
 
 if __name__ == "__main__":
     main()
