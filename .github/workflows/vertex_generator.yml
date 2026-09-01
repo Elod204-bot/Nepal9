@@ -34,7 +34,7 @@ jobs:
           GOOGLE_CLOUD_PROJECT: 'durable-student-507318-t0'
           GOOGLE_CLOUD_LOCATION: 'global'
           DURATION_HOURS: '5.8'
-          INTERVAL_SECONDS: '0'  # Set to 0 to disable the sleep timer completely
+          INTERVAL_SECONDS: '90'  # Wait 90 seconds between generations
         run: python -u scripts/generate_batch.py
 
       - name: Final commit and push
