@@ -21,7 +21,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install google-genai pillow
+          pip install google-cloud-aiplatform pillow
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -30,12 +30,12 @@ jobs:
 
       - name: Run 6-Hour Generation Loop
         env:
-          GOOGLE_CLOUD_PROJECT: 'durable-student-507318-t0'
-          GOOGLE_CLOUD_LOCATION: 'us-central1'
-          GOOGLE_GENAI_USE_VERTEXAI: 'true'
+          PYTHONUNBUFFERED: "1"
+          GCP_PROJECT_ID: 'durable-student-507318-t0'
+          GCP_LOCATION: 'us-central1'
           DURATION_HOURS: '5.8'
           INTERVAL_SECONDS: '120'
-        run: python scripts/generate_batch.py
+        run: python -u scripts/generate_batch.py
 
       - name: Final commit and push
         if: always()
