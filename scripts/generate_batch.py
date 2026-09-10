@@ -1,13 +1,13 @@
+import io
 import os
+import random
 import sys
 import time
-import io
-import random
 from datetime import datetime
 
-from PIL import Image
 from google import genai
 from google.genai import types
+from PIL import Image
 
 PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "durable-student-507318-t0")
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
@@ -16,9 +16,16 @@ INTERVAL_SECONDS = int(os.environ.get("INTERVAL_SECONDS", 61))
 OUTPUT_DIR = "output"
 MODEL_NAME = "gemini-3.1-flash-image"
 
+
 def generate_dynamic_prompt():
-    first_names = ["Aarti", "Priya", "Sunita", "Maya", "Sita", "Nisha", "Bina", "Gita", "Anjali", "Puja"]
-    last_names = ["Gurung", "Thapa", "Shrestha", "Tamang", "Lama", "Magar", "Rai", "Karki", "Adhikari", "Joshi"]
+    first_names = [
+        "Aarav", "Bikash", "Dipendra", "Roshan", "Sandeep",
+        "Suman", "Pradeep", "Manish", "Bibek", "Rajesh"
+    ]
+    last_names = [
+        "Gurung", "Thapa", "Shrestha", "Tamang", "Lama",
+        "Magar", "Rai", "Karki", "Adhikari", "Joshi"
+    ]
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     places = ["POKHARA", "KATHMANDU", "LALITPUR", "BHAKTAPUR", "DHARAN", "BUTWAL", "BIRATNAGAR"]
 
@@ -31,12 +38,12 @@ def generate_dynamic_prompt():
     passport_num = f"NP{random.randint(1000000, 9999999)}"
 
     # Variable 3: DOB
-    dob_year = random.randint(1985, 2003)
+    dob_year = random.randint(1990, 2004)
     dob_day = random.randint(1, 28)
     dob_month = random.choice(months)
     dob = f"{dob_day:02d} {dob_month} {dob_year}"
 
-    # Variable 4 & 5: Issue & Expiry Dates
+    # Variables 4 & 5: Issue & Expiry Dates
     issue_year = 2024
     issue_day = random.randint(1, 28)
     issue_month = random.choice(months)
@@ -46,30 +53,33 @@ def generate_dynamic_prompt():
     # Variable 6: Place of Birth
     birth_place = random.choice(places)
 
-    # Simulated MRZ generation based on variables
+    # Machine Readable Zone (MRZ) formatted with male marker 'M'
     mrz_name = f"{last}<<{first}<<<<<<<<<<<<<".upper()
-    mrz_line = f"P<NPL{mrz_name}{passport_num}<8NPL{dob_year%100:02d}{months.index(dob_month)+1:02d}{dob_day:02d}F34{issue_year%100:02d}{months.index(issue_month)+1:02d}{issue_day:02d}<<<<<<<<<<<<<<04"
+    mrz_line = (
+        f"P<NPL{mrz_name}{passport_num}<8NPL"
+        f"{dob_year%100:02d}{months.index(dob_month)+1:02d}{dob_day:02d}"
+        f"M34{issue_year%100:02d}{months.index(issue_month)+1:02d}{issue_day:02d}"
+        f"<<<<<<<<<<<<<<04"
+    )
 
     prompt = (
-        "A hyper-realistic, close-up photograph of an open Nepalese passport biographical data "
-        "page and adjacent entry/exit page, resting on a rustic dark wood grain table. "
-        "Document Details: The bio page text must be sharp, clear, and perfectly aligned, using standard passport OCR-B fonts. "
-        "Document Type: 'NEPALESE PASSPORT' and 'PASSPORT' printed at the top in dark ink. "
-        "Passport photo: A high-quality, professional headshot of a South Asian woman with long black hair, "
-        "wearing clear-framed glasses and a black blazer over a light shirt, with a natural, pleasant expression. "
-        "Field Labels (in Nepali and English): 'Passport', 'Document Number', 'Name', 'Date of Birth (DOB)', "
-        "'Gender', 'Place of Birth', 'Date of Issue', 'Date of Expiry', 'Issuing Authority'. "
-        f"Specific Data Points: [VARIABLE 1 - NAME]: {name}, [VARIABLE 2 - DOCUMENT NUMBER]: {passport_num}, "
-        f"[VARIABLE 3 - DOB]: {dob}, [VARIABLE 4 - ISSUE DATE]: {issue_date}, [VARIABLE 5 - EXPIRY DATE]: {expiry_date}, "
-        f"[VARIABLE 6 - PLACE OF BIRTH]: {birth_place}. "
-        "Aesthetics and Security Features: The background of the bio page must feature the intricate, light-colored "
-        "Nepalese coat of arms and the distinct 'Complex Guilloché Line Pattern'. "
-        f"The Machine Readable Zone (MRZ) at the bottom must be accurate and legible using the structure: {mrz_line}. "
-        "The adjacent page has realistic red and blue entry/exit ink stamps from TIA Tribhuvan International Airport, "
-        "Kathmandu, Nepal, with clear dates, fiber-filled paper texture, and natural soft overhead lighting viewed from a 3/4 right angle."
+        "A realistic, high-angle close-up photograph of an open Nepalese passport resting on a rustic "
+        "dark wooden table. The bio-data identity page features an official government-style layout with "
+        "sharp OCR-B typography, official security ink stamps, and the national emblem of Nepal visible as a subtle "
+        "watermark pattern in the center. "
+        "Passport Photo: A clear, professional passport portrait of a young South Asian man wearing a dark blue jacket "
+        "over a neutral shirt, facing forward with a neutral, formal expression against a plain off-white studio background. "
+        "Document Fields: "
+        f"Name: {name}, Document No: {passport_num}, Date of Birth: {dob}, Sex: M, "
+        f"Place of Birth: {birth_place}, Date of Issue: {issue_date}, Date of Expiry: {expiry_date}, "
+        "Authority: Department of Passports Kathmandu. "
+        f"Bottom Line MRZ: Fully legible standard machine-readable zone: {mrz_line}. "
+        "Lighting & Optics: Natural side lighting accentuating fine paper fiber texture, crisp focus across the text fields, "
+        "and a gentle shallow depth of field softening the table edges."
     )
 
     return prompt, name, passport_num
+
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -92,10 +102,14 @@ def main():
     while (time.time() - start_time) < max_duration_seconds:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = os.path.join(OUTPUT_DIR, f"passport_{timestamp}_{iteration}.png")
-        
+
         current_prompt, current_name, current_passport = generate_dynamic_prompt()
 
-        print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Requesting generation #{iteration} ({current_name} - {current_passport})...", flush=True)
+        print(
+            f"\n[{datetime.now().strftime('%H:%M:%S')}] Requesting generation #{iteration} "
+            f"({current_name} - {current_passport})...",
+            flush=True,
+        )
 
         try:
             response = client.models.generate_content(
@@ -147,6 +161,7 @@ def main():
         if sleep_time > 0:
             print(f"Sleeping {int(sleep_time)}s...", flush=True)
             time.sleep(sleep_time)
+
 
 if __name__ == "__main__":
     main()
