@@ -18,45 +18,32 @@ MODEL_NAME = "gemini-3.1-flash-image"
 
 
 def generate_dynamic_prompt():
-    first_names = [
-        "Aarav", "Bikash", "Dipendra", "Roshan", "Sandeep",
-        "Suman", "Pradeep", "Manish", "Bibek", "Rajesh"
-    ]
-    last_names = [
-        "Gurung", "Thapa", "Shrestha", "Tamang", "Lama",
-        "Magar", "Rai", "Karki", "Adhikari", "Joshi"
-    ]
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     places = ["POKHARA", "KATHMANDU", "LALITPUR", "BHAKTAPUR", "DHARAN", "BUTWAL", "BIRATNAGAR"]
 
-    # Variable 1: Name
-    first = random.choice(first_names)
-    last = random.choice(last_names)
-    name = f"{first} {last}".upper()
-
-    # Variable 2: Document Number
+    # Variable 1: Document Number
     passport_num = f"NP{random.randint(1000000, 9999999)}"
 
-    # Variable 3: DOB
+    # Variable 2: Date of Birth
     dob_year = random.randint(1990, 2004)
     dob_day = random.randint(1, 28)
     dob_month = random.choice(months)
     dob = f"{dob_day:02d} {dob_month} {dob_year}"
 
-    # Variables 4 & 5: Issue & Expiry Dates
+    # Variables 3 & 4: Issue & Expiry Dates
     issue_year = 2024
     issue_day = random.randint(1, 28)
     issue_month = random.choice(months)
     issue_date = f"{issue_day:02d} {issue_month} {issue_year}"
     expiry_date = f"{issue_day:02d} {issue_month} {issue_year + 10}"
 
-    # Variable 6: Place of Birth
+    # Variable 5: Place of Birth
     birth_place = random.choice(places)
 
-    # Machine Readable Zone (MRZ) formatted with male marker 'M'
-    mrz_name = f"{last}<<{first}<<<<<<<<<<<<<".upper()
-    mrz_line = (
-        f"P<NPL{mrz_name}{passport_num}<8NPL"
+    # Machine Readable Zone (MRZ) formatted with open-ended holder placeholder
+    mrz_data_line = (
+        f"P<NPL<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+        f"\n{passport_num}<8NPL"
         f"{dob_year%100:02d}{months.index(dob_month)+1:02d}{dob_day:02d}"
         f"M34{issue_year%100:02d}{months.index(issue_month)+1:02d}{issue_day:02d}"
         f"<<<<<<<<<<<<<<04"
@@ -70,15 +57,16 @@ def generate_dynamic_prompt():
         "Passport Photo: A clear, professional passport portrait of a young South Asian man wearing a dark blue jacket "
         "over a neutral shirt, facing forward with a neutral, formal expression against a plain off-white studio background. "
         "Document Fields: "
-        f"Name: {name}, Document No: {passport_num}, Date of Birth: {dob}, Sex: M, "
+        f"Document No: {passport_num}, Date of Birth: {dob}, Sex: M, "
         f"Place of Birth: {birth_place}, Date of Issue: {issue_date}, Date of Expiry: {expiry_date}, "
+        "Surname and Given Names: Authentic Nepalese full name clearly printed, "
         "Authority: Department of Passports Kathmandu. "
-        f"Bottom Line MRZ: Fully legible standard machine-readable zone: {mrz_line}. "
+        f"Bottom Line MRZ: Standard compliant machine-readable zone corresponding to the document details: \n{mrz_data_line}. "
         "Lighting & Optics: Natural side lighting accentuating fine paper fiber texture, crisp focus across the text fields, "
         "and a gentle shallow depth of field softening the table edges."
     )
 
-    return prompt, name, passport_num
+    return prompt, passport_num
 
 
 def main():
@@ -103,11 +91,11 @@ def main():
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = os.path.join(OUTPUT_DIR, f"passport_{timestamp}_{iteration}.png")
 
-        current_prompt, current_name, current_passport = generate_dynamic_prompt()
+        current_prompt, current_passport = generate_dynamic_prompt()
 
         print(
             f"\n[{datetime.now().strftime('%H:%M:%S')}] Requesting generation #{iteration} "
-            f"({current_name} - {current_passport})...",
+            f"(Doc: {current_passport})...",
             flush=True,
         )
 
